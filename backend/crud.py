@@ -43,11 +43,34 @@ def get_journal(db: Session, journal_id: int):
 
 
 def create_journal(db: Session, journal: schemas.JournalCreate):
-    db_journal = models.Journal(**journal.model_dump())
-    db.add(db_journal)
-    db.commit()
-    db.refresh(db_journal)
-    return db_journal
+    # 检查是否已存在（通过 openalex_id 或 openalex_issn）
+    existing = None
+    if journal.openalex_id:
+        existing = db.query(models.Journal).filter(
+            models.Journal.openalex_id == journal.openalex_id
+        ).first()
+    
+    if not existing and journal.openalex_issn:
+        # 如果有 ISSN，也检查一下
+        existing = db.query(models.Journal).filter(
+            models.Journal.openalex_issn == journal.openalex_issn
+        ).first()
+    
+    if existing:
+        # 更新已存在的期刊
+        update_data = journal.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(existing, field, value)
+        db.commit()
+        db.refresh(existing)
+        return existing
+    else:
+        # 创建新期刊
+        db_journal = models.Journal(**journal.model_dump())
+        db.add(db_journal)
+        db.commit()
+        db.refresh(db_journal)
+        return db_journal
 
 
 def update_journal(db: Session, journal_id: int, journal: schemas.JournalUpdate):
