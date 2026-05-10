@@ -1,0 +1,9 @@
+/* 全局样式 */
+body { margin:0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background:#f5f6fa; color:#222; }
+a { color:#1a73e8; }
+button { cursor:pointer; }
+input, select, textarea { font-family: inherit; }
+
+/* 滚动条美化 */
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-thumb { background:#ccc; border-radius:3px; }

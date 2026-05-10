@@ -1,0 +1,52 @@
+import axios from 'axios'
+import { useAuthStore } from './stores/auth'
+
+const api = axios.create({ baseURL: '/api' })
+
+// 自动附加 token
+api.interceptors.request.use(config => {
+  const auth = useAuthStore()
+  if (auth.token) {
+    config.headers.Authorization = `Bearer ${auth.token}`
+  }
+  return config
+})
+
+// ========== 认证 ==========
+export function loginApi(data) {
+  return api.post('/auth/login', data)
+}
+export function getMe() {
+  return api.get('/auth/me')
+}
+
+// ========== 期刊 ==========
+export function getJournals(params = {}) {
+  return api.get('/journals', { params })
+}
+export function getCategories() {
+  return api.get('/journals/categories')
+}
+export function createJournal(data) {
+  return api.post('/journals', data)
+}
+export function updateJournal(id, data) {
+  return api.put(`/journals/${id}`, data)
+}
+export function deleteJournal(id) {
+  return api.delete(`/journals/${id}`)
+}
+
+// ========== 论文 ==========
+export function getPapers(params = {}) {
+  return api.get('/papers', { params })
+}
+export function getStarredPapers() {
+  return api.get('/papers/starred')
+}
+export function getPaperDetail(id) {
+  return api.get(`/papers/${id}`)
+}
+export function updatePaperStatus(id, data) {
+  return api.patch(`/papers/${id}`, data)
+}
