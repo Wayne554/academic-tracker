@@ -32,16 +32,21 @@ export const useStore = create((set, get) => ({
   login: async (email, password) => {
     set({ loading: true })
     try {
+      console.log('尝试登录...', email)
       const formData = new FormData()
       formData.append('username', email)
       formData.append('password', password)
       const response = await api.post('/auth/login', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
+      console.log('登录响应:', response.data)
       const { access_token } = response.data
       localStorage.setItem('token', access_token)
       set({ token: access_token })
       await get().fetchMe()
+    } catch (error) {
+      console.error('登录错误:', error)
+      throw error
     } finally {
       set({ loading: false })
     }
