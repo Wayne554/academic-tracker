@@ -1,6 +1,7 @@
-﻿from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException
 import httpx
 import logging
+import time
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -8,12 +9,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 @router.get("/search")
 async def search_journals(query: str, limit: int = 10):
     """
     通过 OpenAlex API 搜索期刊
     """
-    import time
     start_time = time.time()
     try:
         logger.info(f"收到搜索请求: query={query}, limit={limit}")
@@ -42,7 +43,6 @@ async def search_journals(query: str, limit: int = 10):
         # 转换结果格式
         journals = []
         for result in data.get("results", []):
-            # 安全地处理 URL
             openalex_id = result.get("id", "").replace("https://openalex.org/", "")
             journals.append({
                 "openalex_id": openalex_id,
@@ -73,6 +73,7 @@ async def search_journals(query: str, limit: int = 10):
         logger.error(f"详细错误:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
 
+
 @router.get("/{journal_id}")
 async def get_journal_by_id(journal_id: str):
     """
@@ -87,8 +88,7 @@ async def get_journal_by_id(journal_id: str):
             # Work ID - 先获取论文信息，再获取期刊信息
             logger.info(f"检测到 Work ID，先获取论文信息")
             work_url = f"https://api.openalex.org/works/{journal_id}"
-            api_start = time.time()
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
                 work_response = await client.get(work_url)
                 work_response.raise_for_status()
                 work_data = work_response.json()
@@ -107,7 +107,6 @@ async def get_journal_by_id(journal_id: str):
         # 获取期刊详细信息
         url = f"https://api.openalex.org/sources/{journal_id}"
         
-        api_start = time.time()
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
             response = await client.get(url)
             response.raise_for_status()
@@ -144,4 +143,3 @@ async def get_journal_by_id(journal_id: str):
         import traceback
         logger.error(f"详细错误:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"获取期刊信息失败: {str(e)}")
-

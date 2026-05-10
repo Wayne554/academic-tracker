@@ -1,24 +1,27 @@
 #!/bin/bash
-# å¯åŠ¨åç«¯æœåŠ¡ï¼ˆæ”¯æŒå¹¶å‘ï¼‰
-# ä½¿ç”¨å¤šä¸ª worker ä»¥å¤„ç†å¹¶å‘è¯·æ±‚
+# Æô¶¯ºó¶Ë·şÎñ£¨Ö§³Ö²¢·¢£©
+# Ê¹ÓÃ¶à¸ö worker ÒÔ´¦Àí²¢·¢ÇëÇó
 
 cd "$(dirname "$0")"
 
-# ç¡®ä¿ä¾èµ–å·²å®‰è£…
-source venv/bin/activate 2>/dev/null || source venv/Scripts/activate 2>/dev/null
+# È·±£ÒÀÀµÒÑ°²×°
+if [ -d "venv/bin" ]; then
+    source venv/bin/activate
+elif [ -d "venv/Scripts" ]; then
+    source venv/Scripts/activate
+fi
 
-# å¯åŠ¨ uvicornï¼Œä½¿ç”¨ 4 ä¸ª worker
-# --workers 4: 4 ä¸ªè¿›ç¨‹å¹¶å‘å¤„ç†è¯·æ±‚
-# --host 0.0.0.0: å…è®¸å¤–éƒ¨è®¿é—®
-# --port 8000: ç«¯å£
-# --reload: å¼€å‘æ—¶è‡ªåŠ¨é‡è½½ï¼ˆç”Ÿäº§ç¯å¢ƒè¯·åˆ é™¤æ­¤å‚æ•°ï¼‰
+# Æô¶¯ uvicorn£¬Ê¹ÓÃ 4 ¸ö worker
+# ×¢Òâ£º--workers ºÍ --reload ²»ÄÜÍ¬Ê±Ê¹ÓÃ
+# --host 0.0.0.0: ÔÊĞíÍâ²¿·ÃÎÊ
+# --port 8000: ¶Ë¿Ú
 
-echo "å¯åŠ¨ Academic Tracker åç«¯..."
-echo "è®¿é—®åœ°å€: http://0.0.0.0:8000"
-echo "API æ–‡æ¡£: http://0.0.0.0:8000/docs"
+echo "Æô¶¯ Academic Tracker ºó¶Ë..."
+echo "·ÃÎÊµØÖ·: http://0.0.0.0:8000"
+echo "API ÎÄµµ: http://0.0.0.0:8000/docs"
 echo ""
-echo "æç¤º: æŒ‰ Ctrl+C åœæ­¢æœåŠ¡"
+echo "ÌáÊ¾: °´ Ctrl+C Í£Ö¹·şÎñ"
 echo "================================"
 echo ""
 
-uvicorn main:app --workers 4 --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --workers 4 --host 0.0.0.0 --port 8000
