@@ -6,8 +6,8 @@ OpenAlex 是免费、无需 Key 的学术数据源，覆盖所有主流期刊。
 import time
 import httpx
 from sqlalchemy.orm import Session
-from .config import get_settings
-from . import models, crud
+from config import get_settings
+import models, crud
 
 settings = get_settings()
 OPENALEX = settings.OPENALEX_BASE_URL

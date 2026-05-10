@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, desc, asc
 from datetime import datetime
-from . import models, schemas
-from .security import get_password_hash
+import models, schemas
+from security import get_password_hash
 
 
 # ========== 用户 CRUD ==========

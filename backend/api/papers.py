@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from .. import crud, schemas
-from ..database import get_db
+from backend import crud, schemas
+from database import get_db
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api/papers", tags=["论文管理"])

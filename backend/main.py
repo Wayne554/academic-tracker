@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .api import auth, journals, papers
-from .database import engine, init_db
-from . import models
+from api import auth, journals, papers
+from database import engine, init_db
+import models
 
 app = FastAPI(title="Academic Tracker API", version="1.0.0")
 
@@ -26,7 +26,7 @@ def startup():
     # 初始化数据库（含默认管理员账号）
     init_db()
     # 触发一次期刊和论文抓取（可注释掉，改为手动触发）
-    # from .fetch_papers import fetch_all_journals
+    # from fetch_papers import fetch_all_journals
     # fetch_all_journals()
 
 
