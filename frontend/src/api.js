@@ -1,13 +1,12 @@
 import axios from 'axios'
-import { useAuthStore } from './stores/auth'
 
 const api = axios.create({ baseURL: '/api' })
 
-// 自动附加 token
+// 自动附加 token：直接从 localStorage 读取，避免循环依赖
 api.interceptors.request.use(config => {
-  const auth = useAuthStore()
-  if (auth.token) {
-    config.headers.Authorization = `Bearer ${auth.token}`
+  const token = localStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
@@ -50,3 +49,5 @@ export function getPaperDetail(id) {
 export function updatePaperStatus(id, data) {
   return api.patch(`/papers/${id}`, data)
 }
+
+export default api

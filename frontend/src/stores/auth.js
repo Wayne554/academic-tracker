@@ -1,20 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import axios from 'axios'
+import api from '../api'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || '')
   const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
 
   async function login(username, password) {
-    const res = await axios.post('/api/auth/login', { username, password })
+    const res = await api.post('/auth/login', { username, password })
     token.value = res.data.access_token
-    // 获取用户信息
-    const me = await axios.get('/api/auth/me', {
-      headers: { Authorization: `Bearer ${token.value}` }
-    })
-    user.value = me.data
     localStorage.setItem('token', token.value)
+    const me = await api.get('/auth/me')
+    user.value = me.data
     localStorage.setItem('user', JSON.stringify(user.value))
     return me.data
   }
@@ -26,10 +23,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('user')
   }
 
-  function setUser(userData) {
-    user.value = userData
-    localStorage.setItem('user', JSON.stringify(userData))
-  }
-
-  return { token, user, login, logout, setUser }
+  return { token, user, login, logout }
 })

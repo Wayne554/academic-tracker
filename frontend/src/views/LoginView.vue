@@ -20,6 +20,32 @@
   </div>
 </template>
 
+<script setup>
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+
+const router = useRouter()
+const auth = useAuthStore()
+const username = ref('')
+const password = ref('')
+const error = ref('')
+const loading = ref(false)
+
+async function handleLogin() {
+  error.value = ''
+  loading.value = true
+  try {
+    await auth.login(username.value, password.value)
+    router.push('/')
+  } catch (e) {
+    error.value = e.response?.data?.detail || '登录失败，请检查用户名和密码'
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+
 <style scoped>
 .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f0f2f5; }
 .login-card { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.1); width: 380px; }
@@ -34,38 +60,3 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .error-msg { color: #d93025; font-size: 13px; margin-bottom: 8px; }
 .hint { margin-top: 16px; font-size: 12px; color: #aaa; text-align: center; }
 </style>
-
-<script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { loginApi } from '../api'
-
-const router = useRouter()
-const auth = useAuthStore()
-const username = ref('')
-const password = ref('')
-const error = ref('')
-const loading = ref(false)
-
-async function handleLogin() {
-  error.value = ''
-  loading.value = true
-  try {
-    const res = await loginApi({ username: username.value, password: password.value })
-    // 用 token 获取用户信息
-    const me = await auth.login(username.value, password.value)  // 注意：loginApi 返回的是 token
-    // 直接设置 token 并获取用户信息
-    const token = res.data.access_token
-    auth.$patch({ token })
-    localStorage.setItem('token', token)
-    const meRes = await getMe()
-    auth.setUser(meRes.data)
-    router.push('/')
-  } catch (e) {
-    error.value = e.response?.data?.detail || '登录失败，请检查用户名和密码'
-  } finally {
-    loading.value = false
-  }
-}
-</script>
