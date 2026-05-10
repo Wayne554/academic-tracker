@@ -2,6 +2,9 @@
   <div class="journal-manage-page">
     <h2>📂 期刊管理</h2>
 
+    <!-- OpenAlex 期刊搜索 -->
+    <JournalSearch @journal-selected="onJournalSelected" />
+    
     <!-- 添加期刊表单 -->
     <div class="add-form">
       <input v-model="form.name" placeholder="期刊名称（必填）" class="input" />
@@ -51,6 +54,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { getJournals, getCategories, createJournal, updateJournal, deleteJournal } from '../api'
+import JournalSearch from '../components/JournalSearch.vue'
 
 const journals = ref([])
 const categories = ref([])
@@ -60,6 +64,14 @@ const fetching = ref(false)
 
 const form = ref({ name:'', category:'', openalex_issn:'', publisher:'', url:'' })
 const editingId = ref(null)
+
+// 处理从 OpenAlex 搜索选择的期刊
+function onJournalSelected(journal) {
+  form.value.name = journal.name || ''
+  form.value.publisher = journal.publisher || ''
+  form.value.url = journal.homepage_url || ''
+  form.value.openalex_issn = (journal.issn && journal.issn.length > 0) ? journal.issn[0] : ''
+}
 
 const filteredJournals = computed(() => {
   if (!filterCat.value) return journals.value

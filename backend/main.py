@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api import auth, journals, papers
+from openalex import router as openalex_router
 from database import engine, init_db
 import models
 
-app = FastAPI(title="Academic Tracker API", version="1.0.0")
+app = FastAPI(title="Academic Tracker API", version="1.1.0")
 
 # CORS 配置（允许前端访问）
 app.add_middleware(
@@ -19,6 +20,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(journals.router)
 app.include_router(papers.router)
+app.include_router(openalex_router, prefix="/api/openalex", tags=["openalex"])
 
 
 @app.on_event("startup")
