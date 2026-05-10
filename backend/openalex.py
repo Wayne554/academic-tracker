@@ -1,5 +1,10 @@
 from fastapi import APIRouter, HTTPException
 import httpx
+import logging
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -9,6 +14,8 @@ async def search_journals(query: str, limit: int = 10):
     通过 OpenAlex API 搜索期刊
     """
     try:
+        logger.info(f"收到搜索请求: query={query}, limit={limit}")
+        
         # OpenAlex API 端点
         url = "https://api.openalex.org/sources"
         params = {
@@ -18,15 +25,20 @@ async def search_journals(query: str, limit: int = 10):
             "select": "id,display_name,issn,works_count,cited_by_count,homepage_url,publisher"
         }
         
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params, timeout=30.0)
+        logger.info(f"请求 OpenAlex API: {url}")
+        logger.info(f"参数: {params}")
+        
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            response = await client.get(url, params=params)
             response.raise_for_status()
             data = response.json()
+        
+        logger.info(f"OpenAlex API 返回结果数: {len(data.get('results', []))}")
         
         # 转换结果格式
         journals = []
         for result in data.get("results", []):
-            # 修复：安全地处理 URL
+            # 安全地处理 URL
             openalex_id = result.get("id", "").replace("https://openalex.org/", "")
             journals.append({
                 "openalex_id": openalex_id,
@@ -39,6 +51,8 @@ async def search_journals(query: str, limit: int = 10):
                 "url": f"https://doi.org/{openalex_id}"
             })
         
+        logger.info(f"返回 {len(journals)} 个期刊")
+        
         return {
             "success": True,
             "count": len(journals),
@@ -46,8 +60,12 @@ async def search_journals(query: str, limit: int = 10):
         }
     
     except httpx.HTTPError as e:
+        logger.error(f"OpenAlex API HTTP 错误: {str(e)}")
         raise HTTPException(status_code=500, detail=f"OpenAlex API 错误: {str(e)}")
     except Exception as e:
+        logger.error(f"搜索失败: {str(e)}")
+        import traceback
+        logger.error(f"详细错误:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
 
 @router.get("/{journal_id}")
@@ -56,14 +74,16 @@ async def get_journal_by_id(journal_id: str):
     通过 OpenAlex ID 获取期刊详细信息
     """
     try:
+        logger.info(f"请求期刊详情: journal_id={journal_id}")
+        
         url = f"https://api.openalex.org/sources/{journal_id}"
         
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, timeout=30.0)
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            response = await client.get(url)
             response.raise_for_status()
             result = response.json()
         
-        # 修复：安全地处理 URL
+        # 安全地处理 URL
         openalex_id = result.get("id", "").replace("https://openalex.org/", "")
         journal = {
             "openalex_id": openalex_id,
@@ -79,12 +99,18 @@ async def get_journal_by_id(journal_id: str):
             "url": f"https://doi.org/{openalex_id}"
         }
         
+        logger.info(f"返回期刊: {journal['name']}")
+        
         return {
             "success": True,
             "journal": journal
         }
     
     except httpx.HTTPError as e:
+        logger.error(f"OpenAlex API HTTP 错误: {str(e)}")
         raise HTTPException(status_code=500, detail=f"OpenAlex API 错误: {str(e)}")
     except Exception as e:
+        logger.error(f"获取期刊信息失败: {str(e)}")
+        import traceback
+        logger.error(f"详细错误:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"获取期刊信息失败: {str(e)}")

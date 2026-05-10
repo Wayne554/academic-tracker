@@ -1,21 +1,63 @@
 <template>
   <div class="journal-search">
-    <div class="search-box">
-      <span class="search-icon">🔍</span>
-      <input
-        v-model="query"
-        @keyup.enter="handleSearch"
-        placeholder="搜索期刊（输入英文名称，如：Journal of Applied Psychology）"
-        class="search-input"
-      />
-      <button @click="handleSearch" :disabled="loading" class="btn btn-primary btn-sm">
-        {{ loading ? '搜索中...' : '搜索' }}
+    <!-- 搜索模式切换 -->
+    <div class="mode-switch">
+      <button 
+        :class="['mode-btn', { active: mode === 'search' }]"
+        @click="mode = 'search'"
+      >
+        🔍 搜索期刊
+      </button>
+      <button 
+        :class="['mode-btn', { active: mode === 'import' }]"
+        @click="mode = 'import'"
+      >
+        📥 按 ID 导入
       </button>
     </div>
 
-    <div v-if="error" class="error-message">{{ error }}</div>
+    <!-- 模式1：搜索期刊 -->
+    <div v-if="mode === 'search'" class="search-section">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input
+          v-model="query"
+          @keyup.enter="handleSearch"
+          placeholder="搜索期刊（输入英文名称，如：Journal of Applied Psychology）"
+          class="search-input"
+        />
+        <button @click="handleSearch" :disabled="loading" class="btn btn-primary btn-sm">
+          {{ loading ? '搜索中...' : '搜索' }}
+        </button>
+      </div>
+    </div>
 
-    <div v-if="results.length > 0 && !selectedJournal" class="search-results">
+    <!-- 模式2：按 ID 导入 -->
+    <div v-if="mode === 'import'" class="import-section">
+      <div class="search-box">
+        <span class="search-icon">📥</span>
+        <input
+          v-model="openAlexId"
+          @keyup.enter="handleImportById"
+          placeholder="输入 OpenAlex ID（如：S7029271279）"
+          class="search-input"
+        />
+        <button @click="handleImportById" :disabled="loading" class="btn btn-primary btn-sm">
+          {{ loading ? '导入中...' : '导入' }}
+        </button>
+      </div>
+      <div class="hint">
+        💡 提示：在 <a href="https://explore.openalex.org/sources" target="_blank">OpenAlex 网站</a> 搜索期刊，复制 ID（S 开头）
+      </div>
+    </div>
+
+    <!-- 错误信息 -->
+    <div v-if="error" class="error-message">
+      ❌ {{ error }}
+    </div>
+
+    <!-- 搜索结果列表 -->
+    <div v-if="mode === 'search' && results.length > 0 && !selectedJournal" class="search-results">
       <h4>搜索结果（点击选择）：</h4>
       <div class="results-list">
         <div
@@ -51,6 +93,7 @@
       </div>
     </div>
 
+    <!-- 已选择期刊 -->
     <div v-if="selectedJournal" class="selected-journal">
       <h4>✅ 已选择期刊：</h4>
       <div class="journal-card">
@@ -82,7 +125,9 @@ const props = defineProps({
   onSelectJournal: Function
 })
 
+const mode = ref('search')  // 'search' or 'import'
 const query = ref('')
+const openAlexId = ref('')
 const results = ref([])
 const loading = ref(false)
 const error = ref('')
@@ -90,6 +135,7 @@ const selectedJournal = ref(null)
 
 const emit = defineEmits(['journalSelected'])
 
+// 模式1：搜索期刊
 const handleSearch = async () => {
   if (!query.value.trim()) {
     error.value = '请输入期刊名称'
@@ -111,7 +157,8 @@ const handleSearch = async () => {
     )
 
     if (!response.ok) {
-      throw new Error('搜索失败')
+      const errorData = await response.json()
+      throw new Error(errorData.detail || `搜索失败 (${response.status})`)
     }
 
     const data = await response.json()
@@ -122,6 +169,48 @@ const handleSearch = async () => {
     }
   } catch (err) {
     error.value = err.message || '搜索失败，请稍后重试'
+    console.error('搜索错误:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 模式2：按 ID 导入
+const handleImportById = async () => {
+  if (!openAlexId.value.trim()) {
+    error.value = '请输入 OpenAlex ID'
+    return
+  }
+
+  loading.value = true
+  error.value = ''
+
+  try {
+    const response = await fetch(
+      `/api/openalex/${encodeURIComponent(openAlexId.value.trim())}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.detail || `导入失败 (${response.status})`)
+    }
+
+    const data = await response.json()
+    
+    if (data.success && data.journal) {
+      handleSelect(data.journal)
+      openAlexId.value = ''
+    } else {
+      throw new Error('返回数据格式错误')
+    }
+  } catch (err) {
+    error.value = err.message || '导入失败，请稍后重试'
+    console.error('导入错误:', err)
   } finally {
     loading.value = false
   }
@@ -145,11 +234,57 @@ const handleSelect = (journal) => {
   border: 2px dashed #dee2e6;
 }
 
+.mode-switch {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.mode-btn {
+  padding: 0.5rem 1rem;
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.mode-btn:hover {
+  border-color: #007bff;
+  background: #f0f8ff;
+}
+
+.mode-btn.active {
+  border-color: #007bff;
+  background: #007bff;
+  color: white;
+}
+
+.search-section,
+.import-section {
+  margin-bottom: 1rem;
+}
+
+.hint {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.hint a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.hint a:hover {
+  text-decoration: underline;
+}
+
 .search-box {
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  margin-bottom: 1rem;
 }
 
 .search-icon {
