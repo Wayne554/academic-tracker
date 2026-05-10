@@ -5,6 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Academic Tracker - 学术期刊追踪</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  
+  <!-- 阻止 DLP 软件的 WebSocket 连接 -->
+  <script>
+    // 保存原始的 WebSocket 构造函数
+    const OriginalWebSocket = window.WebSocket;
+    
+    // 覆盖 WebSocket 构造函数，阻止连接到 DLP 软件（127.0.0.1:50000）
+    window.WebSocket = function(url, protocols) {
+      if (typeof url === 'string' && url.includes('127.0.0.1:50000')) {
+        console.log('已阻止 DLP WebSocket 连接：', url);
+        // 返回一个空的 WebSocket 对象（不实际连接）
+        return {
+          onopen: null,
+          onclose: null,
+          onmessage: null,
+          onerror: null,
+          close: function() {},
+          send: function() {}
+        };
+      }
+      // 其他 WebSocket 连接正常创建
+      return new OriginalWebSocket(url, protocols);
+    };
+    
+    // 保留原始 WebSocket 的属性和方法
+    Object.assign(window.WebSocket, OriginalWebSocket);
+  </script>
 </head>
 <body>
   <div id="app"></div>
