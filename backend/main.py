@@ -196,17 +196,11 @@ async def refresh_journal(journal_id: int, db: Session = Depends(get_db), _: sch
     return {"new_papers": new_count}
 
 
-frontend_dist = Path("frontend/dist")
-if frontend_dist.exists():
-    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
-
-
-@app.get("/{path:path}")
-async def catch_all(path: str):
-    frontend_path = Path("frontend/dist/index.html")
-    if frontend_path.exists():
-        return FileResponse(frontend_path)
-    return {"message": "Not Found"}
+# 注意：静态文件现在由 Nginx 处理，这里不需要了
+# 但我们保留一个健康检查接口
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":
