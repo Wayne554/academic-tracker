@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+﻿from sqlalchemy.orm import Session
 from sqlalchemy import or_, desc, asc
 from datetime import datetime
 import models, schemas
@@ -43,15 +43,9 @@ def get_journal(db: Session, journal_id: int):
 
 
 def create_journal(db: Session, journal: schemas.JournalCreate):
-    # 检查是否已存在（通过 openalex_id 或 openalex_issn）
+    # 检查是否已存在（通过 openalex_issn）
     existing = None
-    if journal.openalex_id:
-        existing = db.query(models.Journal).filter(
-            models.Journal.openalex_id == journal.openalex_id
-        ).first()
-    
-    if not existing and journal.openalex_issn:
-        # 如果有 ISSN，也检查一下
+    if journal.openalex_issn:
         existing = db.query(models.Journal).filter(
             models.Journal.openalex_issn == journal.openalex_issn
         ).first()
@@ -71,8 +65,6 @@ def create_journal(db: Session, journal: schemas.JournalCreate):
         db.commit()
         db.refresh(db_journal)
         return db_journal
-
-
 def update_journal(db: Session, journal_id: int, journal: schemas.JournalUpdate):
     db_journal = get_journal(db, journal_id)
     if not db_journal:
@@ -221,3 +213,4 @@ def get_starred_papers(db: Session, user_id: int):
         models.UserPaper.user_id == user_id,
         models.UserPaper.is_starred == True
     ).order_by(desc(models.UserPaper.starred_at)).all()
+
