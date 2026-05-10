@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+﻿from fastapi import APIRouter, HTTPException
 import httpx
 import logging
 
@@ -13,6 +13,8 @@ async def search_journals(query: str, limit: int = 10):
     """
     通过 OpenAlex API 搜索期刊
     """
+    import time
+    start_time = time.time()
     try:
         logger.info(f"收到搜索请求: query={query}, limit={limit}")
         
@@ -27,10 +29,13 @@ async def search_journals(query: str, limit: int = 10):
         logger.info(f"请求 OpenAlex API: {url}")
         logger.info(f"参数: {params}")
         
+        api_start = time.time()
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
             response = await client.get(url, params=params)
             response.raise_for_status()
             data = response.json()
+        api_end = time.time()
+        logger.info(f"OpenAlex API 调用耗时: {api_end - api_start:.2f}秒")
         
         logger.info(f"OpenAlex API 返回结果数: {len(data.get('results', []))}")
         
@@ -50,7 +55,8 @@ async def search_journals(query: str, limit: int = 10):
                 "url": f"https://doi.org/{openalex_id}"
             })
         
-        logger.info(f"返回 {len(journals)} 个期刊")
+        total_time = time.time() - start_time
+        logger.info(f"返回 {len(journals)} 个期刊，总耗时: {total_time:.2f}秒")
         
         return {
             "success": True,
@@ -81,7 +87,8 @@ async def get_journal_by_id(journal_id: str):
             # Work ID - 先获取论文信息，再获取期刊信息
             logger.info(f"检测到 Work ID，先获取论文信息")
             work_url = f"https://api.openalex.org/works/{journal_id}"
-            async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            api_start = time.time()
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
                 work_response = await client.get(work_url)
                 work_response.raise_for_status()
                 work_data = work_response.json()
@@ -100,6 +107,7 @@ async def get_journal_by_id(journal_id: str):
         # 获取期刊详细信息
         url = f"https://api.openalex.org/sources/{journal_id}"
         
+        api_start = time.time()
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
             response = await client.get(url)
             response.raise_for_status()
@@ -136,3 +144,4 @@ async def get_journal_by_id(journal_id: str):
         import traceback
         logger.error(f"详细错误:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"获取期刊信息失败: {str(e)}")
+

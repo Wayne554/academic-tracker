@@ -154,6 +154,9 @@ const handleSearch = async () => {
   results.value = []
   selectedJournal.value = null  // 重置选择状态
 
+  console.time('搜索总耗时')
+  console.log('开始搜索:', query.value)
+
   try {
     const response = await fetch(
       `/api/openalex/search?query=${encodeURIComponent(query.value)}&limit=10`,
@@ -164,20 +167,25 @@ const handleSearch = async () => {
       }
     )
 
+    console.log('收到响应状态:', response.status)
+
     if (!response.ok) {
       const errorData = await response.json()
       throw new Error(errorData.detail || `搜索失败 (${response.status})`)
     }
 
     const data = await response.json()
+    console.log('收到数据，期刊数:', data.journals?.length || 0)
     results.value = data.journals || []
     
     if (results.value.length === 0) {
       error.value = '未找到相关期刊，请尝试其他关键词'
     }
+    console.timeEnd('搜索总耗时')
   } catch (err) {
     error.value = err.message || '搜索失败，请稍后重试'
     console.error('搜索错误:', err)
+    console.timeEnd('搜索总耗时')
   } finally {
     loading.value = false
   }
