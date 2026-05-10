@@ -119,7 +119,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 const props = defineProps({
   onSelectJournal: Function
@@ -133,6 +133,13 @@ const loading = ref(false)
 const error = ref('')
 const selectedJournal = ref(null)
 
+// 切换模式时重置状态
+watch(mode, () => {
+  selectedJournal.value = null
+  results.value = []
+  error.value = ''
+})
+
 const emit = defineEmits(['journalSelected'])
 
 // 模式1：搜索期刊
@@ -145,6 +152,7 @@ const handleSearch = async () => {
   loading.value = true
   error.value = ''
   results.value = []
+  selectedJournal.value = null  // 重置选择状态
 
   try {
     const response = await fetch(
@@ -184,6 +192,7 @@ const handleImportById = async () => {
 
   loading.value = true
   error.value = ''
+  selectedJournal.value = null  // 重置选择状态
 
   try {
     const response = await fetch(
