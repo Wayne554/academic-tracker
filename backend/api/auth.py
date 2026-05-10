@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 import crud, schemas, security
 from database import get_db
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
+security_scheme = HTTPBearer()
 
 
+# ========== 公开路由 ==========
 @router.post("/register", response_model=schemas.UserOut)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     if crud.get_user_by_username(db, user.username):
@@ -25,18 +28,7 @@ def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.get("/me", response_model=schemas.UserOut)
-def get_me(current_user: schemas.UserOut = Depends(get_current_user)):
-    return current_user
-
-
 # ========== 依赖注入：获取当前用户 ==========
-from fastapi import Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
-security_scheme = HTTPBearer()
-
-
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
     db: Session = Depends(get_db),
@@ -66,4 +58,10 @@ def get_current_admin(
 ):
     if not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+    return current_user
+
+
+# ========== 需要认证的路由（必须在 get_current_user 之后） ==========
+@router.get("/me", response_model=schemas.UserOut)
+def get_me(current_user: schemas.UserOut = Depends(get_current_user)):
     return current_user
