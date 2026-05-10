@@ -26,17 +26,18 @@ async def search_journals(query: str, limit: int = 10):
         # 转换结果格式
         journals = []
         for result in data.get("results", []):
-            journal = {
-                "openalex_id": result.get("id", "").replace("https://openalex.org/", ""),
+            # 修复：安全地处理 URL
+            openalex_id = result.get("id", "").replace("https://openalex.org/", "")
+            journals.append({
+                "openalex_id": openalex_id,
                 "name": result.get("display_name", ""),
                 "issn": result.get("issn", []),
                 "publisher": result.get("publisher", ""),
                 "works_count": result.get("works_count", 0),
                 "cited_by_count": result.get("cited_by_count", 0),
                 "homepage_url": result.get("homepage_url", ""),
-                "url": f"https://doi.org/{result.get('id', '').replace('https://openalex.org/', '')}"
-            }
-            journals.append(journal)
+                "url": f"https://doi.org/{openalex_id}"
+            })
         
         return {
             "success": True,
@@ -62,8 +63,10 @@ async def get_journal_by_id(journal_id: str):
             response.raise_for_status()
             result = response.json()
         
+        # 修复：安全地处理 URL
+        openalex_id = result.get("id", "").replace("https://openalex.org/", "")
         journal = {
-            "openalex_id": result.get("id", "").replace("https://openalex.org/", ""),
+            "openalex_id": openalex_id,
             "name": result.get("display_name", ""),
             "issn": result.get("issn", []),
             "publisher": result.get("publisher", ""),
@@ -73,7 +76,7 @@ async def get_journal_by_id(journal_id: str):
             "country": result.get("country_code", ""),
             "type": result.get("type", ""),
             "is_oa": result.get("is_oa", False),
-            "url": f"https://doi.org/{result.get('id', '').replace('https://openalex.org/', '')}"
+            "url": f"https://doi.org/{openalex_id}"
         }
         
         return {
