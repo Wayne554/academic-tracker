@@ -1,15 +1,13 @@
 import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [react()],
   server: {
-    host: '0.0.0.0',
-    hmr: false,  // 禁用热更新，避免 WebSocket 连接问题
     proxy: {
       '/api': {
-        target: 'http://119.28.14.122:8000',
-        changeOrigin: true,
+        target: 'http://localhost:8000',
+        changeOrigin: true
       }
     }
   }

@@ -1,216 +1,215 @@
-﻿from sqlalchemy.orm import Session
-from sqlalchemy import or_, desc, asc
-from datetime import datetime
-import models, schemas
-from security import get_password_hash
+from sqlalchemy.orm import Session
+from sqlalchemy import or_, and_
+from typing import List, Optional
+from models import User, Category, Journal, Paper, UserStar, UserRead
+from schemas import UserCreate, CategoryCreate, JournalCreate, PaperCreate
+from auth import get_password_hash
+from openalex import fetch_papers_from_journal
 
 
-# ========== 用户 CRUD ==========
 def get_user(db: Session, user_id: int):
-    return db.query(models.User).filter(models.User.id == user_id).first()
+    return db.query(User).filter(User.id == user_id).first()
 
 
-def get_user_by_username(db: Session, username: str):
-    return db.query(models.User).filter(models.User.username == username).first()
+def get_user_by_email(db: Session, email: str):
+    return db.query(User).filter(User.email == email).first()
 
 
-def create_user(db: Session, user: schemas.UserCreate, is_admin: bool = False):
-    hashed_pw = get_password_hash(user.password)
-    db_user = models.User(
-        username=user.username,
-        email=user.email,
-        hashed_password=hashed_pw,
-        is_admin=is_admin,
-    )
+def get_users(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(User).offset(skip).limit(limit).all()
+
+
+def create_user(db: Session, user: UserCreate, is_admin: bool = False):
+    hashed_password = get_password_hash(user.password)
+    db_user = User(email=user.email, password_hash=hashed_password, is_admin=is_admin)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
 
-# ========== 期刊 CRUD ==========
-def get_journals(db: Session, category: str = None, is_active: bool = None):
-    query = db.query(models.Journal)
+def get_categories(db: Session):
+    return db.query(Category).all()
+
+
+def create_category(db: Session, category: CategoryCreate, created_by: int):
+    db_category = Category(name=category.name, created_by=created_by)
+    db.add(db_category)
+    db.commit()
+    db.refresh(db_category)
+    return db_category
+
+
+def delete_category(db: Session, category_id: int):
+    category = db.query(Category).filter(Category.id == category_id).first()
     if category:
-        query = query.filter(models.Journal.category == category)
-    if is_active is not None:
-        query = query.filter(models.Journal.is_active == is_active)
-    return query.order_by(models.Journal.name).all()
+        db.delete(category)
+        db.commit()
+        return True
+    return False
+
+
+def update_category(db: Session, category_id: int, new_name: str):
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if category:
+        category.name = new_name
+        db.commit()
+        db.refresh(category)
+        return category
+    return None
+
+
+def get_journals(db: Session):
+    return db.query(Journal).all()
 
 
 def get_journal(db: Session, journal_id: int):
-    return db.query(models.Journal).filter(models.Journal.id == journal_id).first()
+    return db.query(Journal).filter(Journal.id == journal_id).first()
 
 
-def create_journal(db: Session, journal: schemas.JournalCreate):
-    # 检查是否已存在（通过 openalex_issn）
-    existing = None
-    if journal.openalex_issn:
-        existing = db.query(models.Journal).filter(
-            models.Journal.openalex_issn == journal.openalex_issn
-        ).first()
-    
-    if existing:
-        # 更新已存在的期刊
-        update_data = journal.model_dump(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(existing, field, value)
-        db.commit()
-        db.refresh(existing)
-        return existing
-    else:
-        # 创建新期刊
-        db_journal = models.Journal(**journal.model_dump())
-        db.add(db_journal)
-        db.commit()
-        db.refresh(db_journal)
-        return db_journal
-def update_journal(db: Session, journal_id: int, journal: schemas.JournalUpdate):
-    db_journal = get_journal(db, journal_id)
-    if not db_journal:
-        return None
-    update_data = journal.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_journal, field, value)
+def create_journal(db: Session, journal: JournalCreate):
+    db_journal = Journal(
+        openalex_source_id=journal.openalex_source_id,
+        issn=journal.issn,
+        display_name=journal.display_name,
+        publisher=journal.publisher
+    )
+    if journal.category_ids:
+        categories = db.query(Category).filter(Category.id.in_(journal.category_ids)).all()
+        db_journal.categories = categories
+    db.add(db_journal)
     db.commit()
     db.refresh(db_journal)
     return db_journal
 
 
 def delete_journal(db: Session, journal_id: int):
-    db_journal = get_journal(db, journal_id)
-    if not db_journal:
-        return False
-    db.delete(db_journal)
-    db.commit()
-    return True
+    journal = db.query(Journal).filter(Journal.id == journal_id).first()
+    if journal:
+        db.delete(journal)
+        db.commit()
+        return True
+    return False
 
 
-def get_journal_categories(db: Session):
-    result = db.query(models.Journal.category).distinct().order_by(models.Journal.category).all()
-    return [r[0] for r in result]
+def get_papers(
+    db: Session,
+    journal_id: Optional[int] = None,
+    category_id: Optional[int] = None,
+    search: Optional[str] = None,
+    sort: Optional[str] = None,
+    user_id: Optional[int] = None,
+    starred_only: bool = False,
+    unread_only: bool = False,
+    skip: int = 0,
+    limit: int = 50
+):
+    query = db.query(Paper)
 
+    if journal_id:
+        query = query.filter(Paper.journal_id == journal_id)
 
-# ========== 论文 CRUD ==========
-def get_papers(db: Session, params: schemas.PaperListParams, user_id: int = None):
-    query = db.query(models.Paper).join(models.Journal)
+    if category_id:
+        query = query.join(Journal).join(Journal.categories).filter(Category.id == category_id)
 
-    # 关联用户状态
-    if user_id:
-        query = query.outerjoin(
-            models.UserPaper,
-            (models.UserPaper.paper_id == models.Paper.id) & (models.UserPaper.user_id == user_id)
-        )
+    if search:
+        query = query.filter(Paper.title.ilike(f"%{search}%"))
 
-    if params.journal_id:
-        query = query.filter(models.Paper.journal_id == params.journal_id)
-    if params.category:
-        query = query.filter(models.Journal.category == params.category)
-    if params.is_starred is not None and user_id:
-        query = query.filter(models.UserPaper.is_starred == params.is_starred)
-    if params.is_read is not None and user_id:
-        query = query.filter(models.UserPaper.is_read == params.is_read)
-    if params.search:
-        search_term = f"%{params.search}%"
-        query = query.filter(
-            or_(
-                models.Paper.title.ilike(search_term),
-                models.Paper.abstract.ilike(search_term),
-                models.Paper.authors.ilike(search_term),
-            )
-        )
-
-    # 排序
-    sort_column = getattr(models.Paper, params.sort_by, models.Paper.fetched_at)
-    if params.order == "desc":
-        query = query.order_by(desc(sort_column))
+    if sort == "date":
+        query = query.order_by(Paper.publication_date.desc())
+    elif sort == "journal":
+        query = query.join(Journal).order_by(Journal.display_name, Paper.publication_date.desc())
+    elif sort == "title":
+        query = query.order_by(Paper.title)
     else:
-        query = query.order_by(asc(sort_column))
+        query = query.order_by(Paper.publication_date.desc())
+
+    if starred_only and user_id:
+        query = query.join(UserStar).filter(UserStar.user_id == user_id)
+
+    if unread_only and user_id:
+        query = query.outerjoin(UserRead, and_(UserRead.paper_id == Paper.id, UserRead.user_id == user_id)).filter(UserRead.id.is_(None))
 
     total = query.count()
-    papers = query.offset(params.skip).limit(params.limit).all()
+    papers = query.offset(skip).limit(limit).all()
 
-    # 附加期刊名称和用户状态
-    result = []
-    for p in papers:
-        journal = db.query(models.Journal).filter(models.Journal.id == p.journal_id).first()
-        up = None
-        if user_id:
-            up = db.query(models.UserPaper).filter(
-                models.UserPaper.user_id == user_id,
-                models.UserPaper.paper_id == p.id
-            ).first()
-        result.append({
-            "id": p.id,
-            "openalex_id": p.openalex_id,
-            "journal_id": p.journal_id,
-            "journal_name": journal.name if journal else "",
-            "title": p.title,
-            "authors": p.authors,
-            "abstract": p.abstract,
-            "publication_date": p.publication_date,
-            "volume": p.volume,
-            "issue": p.issue,
-            "pages": p.pages,
-            "url": p.url,
-            "doi": p.doi,
-            "is_read": up.is_read if up else False,
-            "is_starred": up.is_starred if up else False,
-            "fetched_at": p.fetched_at,
-        })
-    return result, total
+    if user_id:
+        for paper in papers:
+            star = db.query(UserStar).filter(UserStar.user_id == user_id, UserStar.paper_id == paper.id).first()
+            paper.is_starred = star is not None
+            read = db.query(UserRead).filter(UserRead.user_id == user_id, UserRead.paper_id == paper.id).first()
+            paper.is_read = read is not None
+
+    return papers, total
 
 
-def get_paper(db: Session, paper_id: int, user_id: int = None):
-    return db.query(models.Paper).filter(models.Paper.id == paper_id).first()
-
-
-def create_paper(db: Session, paper_data: dict):
-    # 检查是否已存在
-    if paper_data.get("openalex_id"):
-        existing = db.query(models.Paper).filter(
-            models.Paper.openalex_id == paper_data["openalex_id"]
-        ).first()
-        if existing:
-            return existing
-
-    db_paper = models.Paper(**paper_data)
+def create_paper(db: Session, paper: PaperCreate):
+    db_paper = Paper(
+        openalex_work_id=paper.openalex_work_id,
+        title=paper.title,
+        doi=paper.doi,
+        publication_date=paper.publication_date,
+        volume=paper.volume,
+        issue=paper.issue,
+        authors=paper.authors,
+        abstract=paper.abstract,
+        landing_page_url=paper.landing_page_url,
+        journal_id=paper.journal_id
+    )
     db.add(db_paper)
     db.commit()
     db.refresh(db_paper)
     return db_paper
 
 
-# ========== 用户论文操作 ==========
-def update_user_paper(db: Session, user_id: int, paper_id: int, update: schemas.UserPaperUpdate):
-    up = db.query(models.UserPaper).filter(
-        models.UserPaper.user_id == user_id,
-        models.UserPaper.paper_id == paper_id
-    ).first()
-
-    now = datetime.utcnow()
-    data = update.model_dump(exclude_unset=True)
-
-    if not up:
-        up = models.UserPaper(user_id=user_id, paper_id=paper_id)
-        db.add(up)
-        # 需要刷新以获取ID，但先处理字段
-
-    for field, value in data.items():
-        setattr(up, field, value)
-        if field == "is_starred" and value:
-            up.starred_at = now
-        if field == "is_read" and value:
-            up.read_at = now
-
-    db.commit()
-    db.refresh(up)
-    return up
+def get_paper_by_openalex_id(db: Session, openalex_work_id: str):
+    return db.query(Paper).filter(Paper.openalex_work_id == openalex_work_id).first()
 
 
-def get_starred_papers(db: Session, user_id: int):
-    return db.query(models.Paper).join(models.UserPaper).filter(
-        models.UserPaper.user_id == user_id,
-        models.UserPaper.is_starred == True
-    ).order_by(desc(models.UserPaper.starred_at)).all()
+def toggle_star(db: Session, user_id: int, paper_id: int):
+    star = db.query(UserStar).filter(UserStar.user_id == user_id, UserStar.paper_id == paper_id).first()
+    if star:
+        db.delete(star)
+        db.commit()
+        return False
+    else:
+        new_star = UserStar(user_id=user_id, paper_id=paper_id)
+        db.add(new_star)
+        db.commit()
+        return True
 
+
+def mark_read(db: Session, user_id: int, paper_id: int):
+    read = db.query(UserRead).filter(UserRead.user_id == user_id, UserRead.paper_id == paper_id).first()
+    if not read:
+        new_read = UserRead(user_id=user_id, paper_id=paper_id)
+        db.add(new_read)
+        db.commit()
+    return True
+
+
+def refresh_journal_papers(db: Session, journal_id: int):
+    journal = get_journal(db, journal_id)
+    if not journal:
+        return 0
+
+    papers = fetch_papers_from_journal(journal.openalex_source_id)
+    new_count = 0
+
+    for paper_data in papers:
+        existing = get_paper_by_openalex_id(db, paper_data["openalex_work_id"])
+        if not existing:
+            paper_create = PaperCreate(**paper_data, journal_id=journal.id)
+            create_paper(db, paper_create)
+            new_count += 1
+
+    return new_count
+
+
+def refresh_all_papers(db: Session):
+    journals = get_journals(db)
+    total_new = 0
+    for journal in journals:
+        new_count = refresh_journal_papers(db, journal.id)
+        total_new += new_count
+    return total_new
