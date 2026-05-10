@@ -21,8 +21,7 @@ async def search_journals(query: str, limit: int = 10):
         params = {
             "search": query,
             "filter": "type:journal",
-            "per_page": limit,
-            "select": "id,display_name,issn,works_count,cited_by_count,homepage_url,publisher"
+            "per_page": limit
         }
         
         logger.info(f"请求 OpenAlex API: {url}")
@@ -72,10 +71,33 @@ async def search_journals(query: str, limit: int = 10):
 async def get_journal_by_id(journal_id: str):
     """
     通过 OpenAlex ID 获取期刊详细信息
+    支持 Source ID (S前缀) 和 Work ID (W前缀)
     """
     try:
         logger.info(f"请求期刊详情: journal_id={journal_id}")
         
+        # 判断 ID 类型
+        if journal_id.upper().startswith('W'):
+            # Work ID - 先获取论文信息，再获取期刊信息
+            logger.info(f"检测到 Work ID，先获取论文信息")
+            work_url = f"https://api.openalex.org/works/{journal_id}"
+            async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+                work_response = await client.get(work_url)
+                work_response.raise_for_status()
+                work_data = work_response.json()
+            
+            # 从论文信息中提取期刊 ID
+            source_id = None
+            if work_data.get("primary_location") and work_data["primary_location"].get("source"):
+                source_id = work_data["primary_location"]["source"]["id"]
+            
+            if not source_id:
+                raise HTTPException(status_code=404, detail="该论文没有关联的期刊信息")
+            
+            logger.info(f"从论文中提取到期刊 ID: {source_id}")
+            journal_id = source_id.replace("https://openalex.org/", "")
+        
+        # 获取期刊详细信息
         url = f"https://api.openalex.org/sources/{journal_id}"
         
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
